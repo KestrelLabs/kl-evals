@@ -1,6 +1,14 @@
 name: evals
 
 on:
+  # Automatic: run on pushes to the default branch.
+  # Note: we ignore commits that only update badges to avoid infinite loops.
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'badges/**'
+
+  # Manual: allow ad-hoc runs with different suite/model.
   workflow_dispatch:
     inputs:
       suite:
@@ -18,7 +26,14 @@ permissions:
 
 jobs:
   run-evals:
+    # Prevent loops when the workflow pushes its own badge update commit.
+    if: ${{ github.actor != 'github-actions[bot]' }}
+
     runs-on: ubuntu-latest
+
+    env:
+      SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'examples/structured_extraction.yaml' }}
+      MODEL: ${{ github.event_name == 'workflow_dispatch' && inputs.model || 'gpt-4.1-mini' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +62,9 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          kestrel-evals run "${{ inputs.suite }}" --model "${{ inputs.model }}" --out reports/report.json
+          echo "Running suite: ${SUITE}"
+          echo "Model: ${MODEL}"
+          kestrel-evals run "${SUITE}" --model "${MODEL}" --out reports/report.json
 
       - name: Upload report
         if: ${{ always() }}
@@ -58,8 +75,6 @@ jobs:
 
       - name: Generate badge endpoint JSON
         if: ${{ always() }}
-        env:
-          MODEL: ${{ inputs.model }}
         run: |
           python - <<'PY'
           import json
@@ -67,7 +82,6 @@ jobs:
           from pathlib import Path
 
           report_path = Path('reports/report.json')
-
           model = (os.getenv('MODEL') or '').strip() or 'model?'
 
           if not report_path.exists():
