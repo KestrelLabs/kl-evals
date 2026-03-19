@@ -1,5 +1,20 @@
 # kestrel-evals — Deterministic LLM Gating (v1)
 
+## BLUF
+If an LLM feature depends on a structured output contract, you should be able to test that contract the same way you test normal software: with deterministic checks, repeatable suites, and CI failure when the output breaks.
+
+That is the value proposition of `kestrel-evals`.
+
+It gives you a compact way to:
+- define LLM eval cases in YAML
+- enforce mechanical correctness (JSON validity, required keys, allowed values, formatting constraints)
+- generate machine-readable reports
+- fail CI on regressions
+
+The result is not a broad “AI quality platform.” It is something narrower and more operationally useful: a test harness for contract-bound LLM behaviors.
+
+---
+
 ## Abstract
 `kestrel-evals` is a small evaluation harness for LLM-powered systems where output correctness is partly or largely **mechanical**.
 
@@ -19,7 +34,36 @@ The current v1 is intentionally small. The point is not to be a universal benchm
 
 ---
 
-## 1. Problem statement
+## 1. Introduction
+The practical challenge with LLM systems is not always that they are “wrong” in a philosophical sense. More often, they are wrong in ways that break software.
+
+A downstream system might expect:
+- valid JSON
+- a fixed set of top-level keys
+- empty strings instead of `null`
+- a list field that uses only approved labels
+- no extra commentary, markdown fences, or prose wrappers
+
+When those assumptions are violated, the system fails long before anyone gets to debate whether the model output was clever, elegant, or broadly helpful.
+
+That is the gap `kestrel-evals` is designed to fill.
+
+The core idea is simple: if an LLM output is part of a production workflow, then the output contract should be testable. And if it is testable, it should be possible to run those tests locally, in CI, and in a way that fails fast when the contract breaks.
+
+### Clear value proposition
+The value proposition is not “better AI vibes.”
+
+The value proposition is:
+- fewer silent regressions in contract-bound LLM features
+- faster iteration on prompts and schemas
+- CI-visible failures instead of downstream breakage
+- a lightweight path from “prompt experiment” to “testable subsystem”
+
+In short: `kestrel-evals` makes a common class of LLM integration risks behave more like ordinary software quality problems.
+
+---
+
+## 2. Problem statement
 Many LLM evaluation discussions jump immediately to nuanced questions:
 - Is the answer helpful?
 - Is the reasoning strong?
@@ -44,7 +88,7 @@ This project exists to address that layer first.
 
 ---
 
-## 2. Design goal
+## 3. Design goal
 The goal of `kestrel-evals` is straightforward:
 
 > **Deterministic gating first.**
@@ -63,7 +107,7 @@ It is trying to solve a narrower and common one well:
 
 ---
 
-## 3. Scope and non-goals
+## 4. Scope and non-goals
 ### In scope (v1)
 - YAML-defined suites
 - local execution
@@ -85,10 +129,10 @@ This limitation is deliberate. The project is small on purpose.
 
 ---
 
-## 4. Why deterministic checks deserve to be first
+## 5. Why deterministic checks deserve to be first
 There are at least four reasons to start here.
 
-### 4.1 They map directly to production failure modes
+### 5.1 They map directly to production failure modes
 If your downstream code expects:
 
 ```json
@@ -107,7 +151,7 @@ then these are real failures, not cosmetic differences:
 
 These are precisely the kinds of errors deterministic checks catch well.
 
-### 4.2 They are cheap to run and easy to explain
+### 5.2 They are cheap to run and easy to explain
 A failed regex, missing key, or disallowed value is easy to understand.
 
 That matters for team adoption. Engineers and product owners are much more likely to trust an eval system when the failure explanation is concrete:
@@ -115,7 +159,7 @@ That matters for team adoption. Engineers and product owners are much more likel
 - `Expected list at 'services', got str`
 - `Disallowed values at 'services': ['SEO']`
 
-### 4.3 They make CI integration natural
+### 5.3 They make CI integration natural
 If the question is “did the contract hold?”, then CI can treat the eval like any other test.
 
 That is exactly how `kestrel-evals` behaves today:
@@ -125,14 +169,14 @@ That is exactly how `kestrel-evals` behaves today:
 
 This is simple enough to drop into a GitHub Actions workflow without inventing an entire orchestration layer.
 
-### 4.4 They create a clean foundation for later subjective evaluation
+### 5.4 They create a clean foundation for later subjective evaluation
 Rubric scoring and LLM-as-judge can be valuable, but they are far more useful once the system is already meeting its hard constraints.
 
 It is usually a mistake to ask “how good is this answer?” before confirming “did it even produce something structurally valid?”
 
 ---
 
-## 5. System overview
+## 6. System overview
 At a high level, `kestrel-evals` has four moving parts:
 
 1. **Suite definition** — YAML file defining cases and checks
@@ -151,9 +195,33 @@ This keeps the architecture small and legible.
 - `src/kestrel_evals/runner.py`
 - `src/kestrel_evals/cli.py`
 
+### Architecture diagram
+```mermaid
+flowchart TD
+    A[Suite YAML\nexamples/structured_extraction.yaml] --> B[suite_loader.py]
+    B --> C[Validated EvalSuite models]
+    C --> D[runner.py]
+    D --> E[Provider abstraction\nLLMProvider]
+    E --> F[OpenAIProvider]
+    F --> G[LLM output_text]
+    G --> H[checks.py]
+    H --> H1[json_schema]
+    H --> H2[allowed_values]
+    H --> H3[regex]
+    H1 --> I[Case results]
+    H2 --> I
+    H3 --> I
+    I --> J[JSON report]
+    J --> K[reports/report.json]
+    J --> L[CI artifact upload]
+    I --> M{Any failed?}
+    M -- Yes --> N[CLI exits code 1]
+    M -- No --> O[CLI exits code 0]
+```
+
 ---
 
-## 6. Suite definition model
+## 7. Suite definition model
 Suites are authored in YAML.
 
 Each suite defines:
@@ -175,7 +243,7 @@ That is an important property. It means the test suite is not hidden in scattere
 
 ---
 
-## 7. Provider abstraction
+## 8. Provider abstraction
 The provider abstraction is intentionally minimal.
 
 `src/kestrel_evals/providers/base.py` defines a simple interface:
@@ -192,10 +260,10 @@ The project is not yet provider-rich, but the architecture already assumes it sh
 
 ---
 
-## 8. Check model
+## 9. Check model
 The v1 harness supports a small check vocabulary. That is a strength, not a weakness, because it keeps the system auditable.
 
-### 8.1 `json_schema`
+### 9.1 `json_schema`
 The current `json_schema` support is intentionally limited, but it covers a useful subset:
 - object type checking
 - required keys
@@ -205,7 +273,7 @@ This is implemented in `check_json_schema()`.
 
 It is not meant to compete with the full `jsonschema` library. It is meant to be enough for common contract enforcement without increasing dependency surface too early.
 
-### 8.2 `allowed_values`
+### 9.2 `allowed_values`
 This check verifies that a path like `services` resolves to a list, and that every item in that list belongs to an allowed vocabulary.
 
 This is especially useful for:
@@ -214,7 +282,7 @@ This is especially useful for:
 - taxonomy classification
 - any output where downstream code expects a controlled set of values
 
-### 8.3 `regex`
+### 9.3 `regex`
 A regex check operates on raw output text.
 
 This is useful for lightweight assertions like:
@@ -224,7 +292,7 @@ This is useful for lightweight assertions like:
 
 ---
 
-## 9. Runner behavior
+## 10. Runner behavior
 The runner (`src/kestrel_evals/runner.py`) executes each case in sequence.
 
 For each case it:
@@ -248,7 +316,7 @@ This format is intentionally plain JSON so it is easy to:
 
 ---
 
-## 10. CLI and CI behavior
+## 11. CLI and CI behavior
 The CLI is defined in `src/kestrel_evals/cli.py`.
 
 Current behavior:
@@ -288,7 +356,7 @@ Because the CLI exits with code `1` when there are failures, the workflow behave
 
 ---
 
-## 11. Example suite: structured extraction
+## 12. Example suite: structured extraction
 The included example suite is:
 - `examples/structured_extraction.yaml`
 
@@ -313,18 +381,43 @@ The suite requires outputs to:
 
 In other words, this is not “did the model get the vibe right?” It is “did it produce something the pipeline can trust?”
 
+### Example suite summary table
+| Item | Value |
+|---|---|
+| Suite name | `Sales lead intake extraction` |
+| Purpose | Extract a consistent JSON payload from messy inbound lead emails |
+| Cases | 10 |
+| Model in baseline | `gpt-4.1-mini` |
+| Contract style | Raw JSON + fixed top-level schema + controlled vocabulary |
+| Primary checks | `json_schema`, `allowed_values`, `regex` |
+| CI behavior | Fail on any case failure |
+
+### Test case coverage table
+| Case ID | Scenario covered | Main contract risk being tested |
+|---|---|---|
+| `basic_new_site` | clear website redesign request | base extraction + email pattern |
+| `signature_block` | sparse request with contact info in signature | name/email extraction from loose formatting |
+| `website_upgrade_and_maintenance` | multi-service request | multiple allowed service labels |
+| `cms_setup` | field-like email with company name | CMS mapping + structured extraction |
+| `budget_and_timeline` | request with explicit budget/timeline | numeric-ish text capture without schema drift |
+| `ai_rnd_and_evals` | LLM feature + CI evaluation ask | AI/R&D label mapping |
+| `devops_platform` | CI/CD + observability | controlled vocab for platform work |
+| `security_review` | security review + auth hardening | multi-label security mapping |
+| `fractional_cto` | fractional CTO + architecture review | advisory/strategy label mapping |
+| `very_short` | extremely terse lead | minimum viable extraction under low context |
+
 ---
 
-## 12. What the baseline demonstrates
+## 13. What the baseline demonstrates
 A checked-in baseline report is included here:
 - `baselines/structured_extraction-2026-03-19_gpt-4.1-mini.json`
 
 That baseline matters for two reasons.
 
-### 12.1 It proves the suite is not hypothetical
+### 13.1 It proves the suite is not hypothetical
 The suite is not merely specified; it was actually executed against a model and produced a green result.
 
-### 12.2 It creates a stable reference point
+### 13.2 It creates a stable reference point
 Once a green baseline exists, future changes can be evaluated against it:
 - prompt changes
 - suite changes
@@ -333,9 +426,21 @@ Once a green baseline exists, future changes can be evaluated against it:
 
 That makes the harness useful not just for one run, but for tracking whether a system becomes more or less reliable over time.
 
+### Baseline results table
+| Metric | Result |
+|---|---|
+| Baseline artifact | `baselines/structured_extraction-2026-03-19_gpt-4.1-mini.json` |
+| Model | `gpt-4.1-mini` |
+| Total cases | 10 |
+| Passed | 10 |
+| Failed | 0 |
+| Pass rate | 100% |
+| Checks used | `json_schema`, `allowed_values`, `regex` |
+| Intended use | local verification + CI gating |
+
 ---
 
-## 13. Lessons from building the example suite
+## 14. Lessons from building the example suite
 One practical lesson from the structured extraction example is that even strong models need **clear contract reinforcement** when the output format is strict.
 
 In practice, the kinds of things that improved reliability were not exotic:
@@ -351,8 +456,8 @@ It does not assume the model will “probably do the right thing.” It makes th
 
 ---
 
-## 14. Design tradeoffs
-### 14.1 Minimal dependency surface
+## 15. Design tradeoffs
+### 15.1 Minimal dependency surface
 The project avoids bringing in heavier validation tooling in v1.
 
 Benefits:
@@ -367,7 +472,7 @@ Costs:
 
 This is a reasonable trade for a v1 whose purpose is to establish a solid deterministic core.
 
-### 14.2 Strictness over convenience
+### 15.2 Strictness over convenience
 The example suite expects raw JSON only.
 
 That means seemingly “close enough” outputs can still fail, such as:
@@ -376,14 +481,14 @@ That means seemingly “close enough” outputs can still fail, such as:
 
 This is not accidental harshness. It reflects a real production concern: if the output must be machine-consumable, the evaluation should enforce that exact constraint.
 
-### 14.3 Report format is functional, not polished
+### 15.3 Report format is functional, not polished
 The v1 report is JSON-first and artifact-friendly.
 
 That makes it practical, but not especially reader-friendly for non-technical audiences. Better human-readable reporting is a clear next step.
 
 ---
 
-## 15. What this project is good for right now
+## 16. What this project is good for right now
 `kestrel-evals` is already well-suited for teams that need to validate:
 - structured extraction outputs
 - controlled-vocabulary classification
@@ -401,7 +506,7 @@ Examples:
 
 ---
 
-## 16. What it is not trying to solve yet
+## 17. What it is not trying to solve yet
 There are many worthwhile evaluation problems outside the current scope:
 - open-ended conversational helpfulness
 - nuanced style grading
@@ -417,28 +522,28 @@ The current claim is narrower and more defensible:
 
 ---
 
-## 17. Future directions
+## 18. Future directions
 The next sensible expansions are clear.
 
-### 17.1 More providers
+### 18.1 More providers
 The provider abstraction is already in place. The most obvious next additions are:
 - Anthropic
 - Azure OpenAI
 - local or OpenAI-compatible endpoints
 
-### 17.2 Better reporting
+### 18.2 Better reporting
 The current JSON artifact is useful but sparse. Good next improvements would be:
 - Markdown summary reports
 - HTML dashboards
 - pass/fail diffs against a prior baseline
 
-### 17.3 Dataset and baseline management
+### 18.3 Dataset and baseline management
 A stronger v2 would make it easier to manage:
 - named baselines
 - versioned datasets
 - comparison between runs over time
 
-### 17.4 Optional rubric scoring
+### 18.4 Optional rubric scoring
 Rubric scoring still has a place, but it should remain layered on top of deterministic gating, not replace it.
 
 That is the right order:
@@ -447,7 +552,7 @@ That is the right order:
 
 ---
 
-## 18. Conclusion
+## 19. Conclusion
 `kestrel-evals` is a deliberately small tool solving a real problem: making a class of LLM regressions testable in the same operational style as conventional software tests.
 
 Its central argument is simple and practical:
@@ -458,3 +563,16 @@ Its central argument is simple and practical:
 That is the contribution of this v1.
 
 It is not a grand unified evaluation platform. It is a compact, production-minded harness for one of the most common and immediately useful evaluation patterns: **deterministic gating of contract-bound LLM outputs**.
+
+### So what?
+The practical implication is that teams do not have to choose between “prompt engineering in the dark” and “building a giant evaluation platform.”
+
+There is a useful middle ground.
+
+`kestrel-evals` shows that for contract-bound LLM features, a small amount of structure goes a long way:
+- define the contract
+- codify the checks
+- run them locally
+- gate CI on regressions
+
+That turns a fragile prompt-dependent behavior into something closer to an ordinary software component: observable, testable, and much easier to trust.
