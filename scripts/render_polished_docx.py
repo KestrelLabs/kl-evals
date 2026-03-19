@@ -17,7 +17,6 @@ INPUT = ROOT / "WRITEUP.md"
 OUTPUT = ROOT / "WRITEUP_polished.docx"
 
 BODY_FONT = "Times New Roman"
-SANS_FONT = "Aptos"
 MONO_FONT = "Consolas"
 AUTHOR_NAME = "Daymian Tomczyk"
 ORG_NAME = "Kestrel Labs"
@@ -59,6 +58,37 @@ class RuleBlock:
 @dataclass
 class BlufBlock:
     blocks: list[object]
+
+
+def set_rfonts(element, font_name: str) -> None:
+    r_pr = element.get_or_add_rPr()
+    r_fonts = r_pr.rFonts
+    if r_fonts is None:
+        r_fonts = OxmlElement("w:rFonts")
+        r_pr.append(r_fonts)
+    for key in ("ascii", "hAnsi", "eastAsia", "cs"):
+        r_fonts.set(qn(f"w:{key}"), font_name)
+
+
+def apply_run_font(run, font_name: str, size: int | None = None, *, bold: bool | None = None, italic: bool | None = None, color: RGBColor | None = None) -> None:
+    run.font.name = font_name
+    set_rfonts(run._element, font_name)
+    if size is not None:
+        run.font.size = Pt(size)
+    if bold is not None:
+        run.bold = bold
+    if italic is not None:
+        run.italic = italic
+    if color is not None:
+        run.font.color.rgb = color
+
+
+def apply_style_font(style, font_name: str, size: int, *, bold: bool = False) -> None:
+    style.font.name = font_name
+    style.font.size = Pt(size)
+    style.font.bold = bold
+    style.font.color.rgb = RGBColor(0, 0, 0)
+    set_rfonts(style.element, font_name)
 
 
 def add_page_number(paragraph) -> None:
@@ -329,29 +359,19 @@ def style_document(doc: Document) -> None:
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.CENTER
     rh = header.add_run("kestrel-evals")
-    rh.font.name = BODY_FONT
-    rh.font.size = Pt(9)
-    rh.italic = True
-    rh.font.color.rgb = RGBColor(96, 96, 96)
+    apply_run_font(rh, BODY_FONT, 9, italic=True, color=RGBColor(96, 96, 96))
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     add_page_number(footer)
     for run in footer.runs:
-        run.font.name = BODY_FONT
-        run.font.size = Pt(9)
-        run.font.color.rgb = RGBColor(96, 96, 96)
+        apply_run_font(run, BODY_FONT, 9, color=RGBColor(96, 96, 96))
 
-    normal = doc.styles["Normal"]
-    normal.font.name = BODY_FONT
-    normal.font.size = Pt(11)
-
-    for style_name, size in [("Title", 22), ("Heading 1", 14), ("Heading 2", 12), ("Heading 3", 11)]:
-        style = doc.styles[style_name]
-        style.font.name = BODY_FONT
-        style.font.size = Pt(size)
-        style.font.color.rgb = RGBColor(0, 0, 0)
-        style.font.bold = True
+    apply_style_font(doc.styles["Normal"], BODY_FONT, 11)
+    apply_style_font(doc.styles["Title"], BODY_FONT, 18, bold=True)
+    apply_style_font(doc.styles["Heading 1"], BODY_FONT, 13, bold=True)
+    apply_style_font(doc.styles["Heading 2"], BODY_FONT, 12, bold=True)
+    apply_style_font(doc.styles["Heading 3"], BODY_FONT, 11, bold=True)
 
 
 def add_title_page(doc: Document, title: str) -> None:
@@ -360,38 +380,28 @@ def add_title_page(doc: Document, title: str) -> None:
     p.paragraph_format.space_before = Pt(72)
     p.paragraph_format.space_after = Pt(14)
     r = p.add_run(title)
-    r.bold = True
-    r.font.name = BODY_FONT
-    r.font.size = Pt(20)
+    apply_run_font(r, BODY_FONT, 18, bold=True)
 
     p2 = doc.add_paragraph()
     p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r2 = p2.add_run("Initial implementation / working paper draft")
-    r2.italic = True
-    r2.font.name = BODY_FONT
-    r2.font.size = Pt(11)
-    r2.font.color.rgb = RGBColor(96, 96, 96)
+    apply_run_font(r2, BODY_FONT, 11, italic=True, color=RGBColor(96, 96, 96))
 
     p3 = doc.add_paragraph()
     p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p3.paragraph_format.space_before = Pt(28)
     r3 = p3.add_run(AUTHOR_NAME)
-    r3.font.name = BODY_FONT
-    r3.font.size = Pt(11.5)
-    r3.bold = True
+    apply_run_font(r3, BODY_FONT, 11, bold=True)
 
     p4 = doc.add_paragraph()
     p4.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r4 = p4.add_run(ORG_NAME)
-    r4.font.name = BODY_FONT
-    r4.font.size = Pt(11)
+    apply_run_font(r4, BODY_FONT, 11)
 
     p5 = doc.add_paragraph()
     p5.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r5 = p5.add_run("March 2026")
-    r5.font.name = BODY_FONT
-    r5.font.size = Pt(10.5)
-    r5.font.color.rgb = RGBColor(96, 96, 96)
+    apply_run_font(r5, BODY_FONT, 10, color=RGBColor(96, 96, 96))
 
     doc.add_page_break()
 
@@ -404,24 +414,20 @@ def render_bluf(doc: Document, block: BlufBlock) -> None:
 
     p = cell.paragraphs[0]
     r = p.add_run("BLUF")
-    r.bold = True
-    r.font.name = BODY_FONT
-    r.font.size = Pt(11)
+    apply_run_font(r, BODY_FONT, 11, bold=True)
 
     for inner in block.blocks:
         if isinstance(inner, ParagraphBlock):
             p = cell.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             r = p.add_run(inner.text)
-            r.font.name = BODY_FONT
-            r.font.size = Pt(11)
+            apply_run_font(r, BODY_FONT, 11)
         elif isinstance(inner, BulletBlock):
             for item in inner.items:
                 p = cell.add_paragraph(style="List Bullet")
                 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                 r = p.add_run(item)
-                r.font.name = BODY_FONT
-                r.font.size = Pt(10.5)
+                apply_run_font(r, BODY_FONT, 10)
     doc.add_paragraph()
 
 
@@ -445,12 +451,10 @@ def render_paragraph(doc: Document, text: str, *, indent: bool) -> None:
             continue
         if part.startswith("`") and part.endswith("`"):
             r = p.add_run(part[1:-1])
-            r.font.name = MONO_FONT
-            r.font.size = Pt(9.5)
+            apply_run_font(r, MONO_FONT, 9)
         else:
             r = p.add_run(part)
-            r.font.name = BODY_FONT
-            r.font.size = Pt(11)
+            apply_run_font(r, BODY_FONT, 11)
 
 
 def render_bullets(doc: Document, block: BulletBlock) -> None:
@@ -461,8 +465,7 @@ def render_bullets(doc: Document, block: BulletBlock) -> None:
         p.paragraph_format.space_after = Pt(2)
         p.paragraph_format.line_spacing = 1.1
         r = p.add_run(item)
-        r.font.name = BODY_FONT
-        r.font.size = Pt(10.5)
+        apply_run_font(r, BODY_FONT, 10)
 
 
 def render_code(doc: Document, block: CodeBlock, tmpdir: Path) -> None:
@@ -476,9 +479,7 @@ def render_code(doc: Document, block: CodeBlock, tmpdir: Path) -> None:
         cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
         cap.paragraph_format.space_after = Pt(10)
         r = cap.add_run("Figure 1. Architecture overview")
-        r.font.name = BODY_FONT
-        r.font.size = Pt(10)
-        r.italic = True
+        apply_run_font(r, BODY_FONT, 10, italic=True)
         return
 
     for line in block.content.splitlines() or [""]:
@@ -488,9 +489,7 @@ def render_code(doc: Document, block: CodeBlock, tmpdir: Path) -> None:
         p.paragraph_format.right_indent = Inches(0.2)
         set_paragraph_border(p, color="CFCFCF")
         r = p.add_run(line)
-        r.font.name = MONO_FONT
-        r.font.size = Pt(9)
-        r.font.color.rgb = RGBColor(44, 44, 44)
+        apply_run_font(r, MONO_FONT, 9, color=RGBColor(44, 44, 44))
     doc.add_paragraph()
 
 
@@ -512,10 +511,7 @@ def render_table(doc: Document, block: TableBlock) -> None:
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 for r in p.runs:
-                    r.font.name = BODY_FONT
-                    r.font.size = Pt(10)
-                    if i == 0:
-                        r.bold = True
+                    apply_run_font(r, BODY_FONT, 10, bold=(i == 0))
     doc.add_paragraph()
 
 
