@@ -14,10 +14,6 @@ on:
 
 jobs:
   run-evals:
-    # Avoid failing normal CI when the repo doesn't have secrets configured yet.
-    # For workflow_dispatch runs, this will show as "skipped" until OPENAI_API_KEY is set.
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
-
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +27,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[openai]"
+
+      - name: Verify OPENAI_API_KEY secret is set
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY is not set. Add it in GitHub: Settings → Secrets and variables → Actions → New repository secret."
+            exit 1
+          fi
 
       - name: Run suite
         env:
