@@ -434,11 +434,11 @@ def render_heading(doc: Document, block: HeadingBlock) -> None:
     p.paragraph_format.space_after = Pt(4)
 
 
-def render_paragraph(doc: Document, text: str) -> None:
+def render_paragraph(doc: Document, text: str, *, indent: bool) -> None:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     p.paragraph_format.space_after = Pt(6)
-    p.paragraph_format.first_line_indent = Inches(0.25)
+    p.paragraph_format.first_line_indent = Inches(0.25) if indent else Inches(0)
     p.paragraph_format.line_spacing = 1.15
     for part in re.split(r"(`[^`]+`)", text):
         if not part:
@@ -532,21 +532,29 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as td:
         tmpdir = Path(td)
+        indent_next_paragraph = False
         for block in blocks[1:]:
             if isinstance(block, BlufBlock):
                 render_bluf(doc, block)
+                indent_next_paragraph = False
             elif isinstance(block, HeadingBlock):
                 render_heading(doc, block)
+                indent_next_paragraph = False
             elif isinstance(block, ParagraphBlock):
-                render_paragraph(doc, block.text)
+                render_paragraph(doc, block.text, indent=indent_next_paragraph)
+                indent_next_paragraph = True
             elif isinstance(block, BulletBlock):
                 render_bullets(doc, block)
+                indent_next_paragraph = False
             elif isinstance(block, CodeBlock):
                 render_code(doc, block, tmpdir)
+                indent_next_paragraph = False
             elif isinstance(block, TableBlock):
                 render_table(doc, block)
+                indent_next_paragraph = False
             elif isinstance(block, RuleBlock):
                 doc.add_paragraph()
+                indent_next_paragraph = False
 
         doc.save(OUTPUT)
     print(f"Wrote {OUTPUT}")
