@@ -1,14 +1,6 @@
 name: evals
 
 on:
-  # Automatic: run on pushes to the default branch.
-  # Note: we ignore commits that only update badges to avoid infinite loops.
-  push:
-    branches: [master]
-    paths-ignore:
-      - 'badges/**'
-
-  # Manual: allow ad-hoc runs with different suite/model.
   workflow_dispatch:
     inputs:
       suite:
@@ -26,14 +18,11 @@ permissions:
 
 jobs:
   run-evals:
-    # Prevent loops when the workflow pushes its own badge update commit.
-    if: ${{ github.actor != 'github-actions[bot]' }}
-
     runs-on: ubuntu-latest
 
     env:
-      SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'examples/structured_extraction.yaml' }}
-      MODEL: ${{ github.event_name == 'workflow_dispatch' && inputs.model || 'gpt-4.1-mini' }}
+      SUITE: ${{ inputs.suite }}
+      MODEL: ${{ inputs.model }}
 
     steps:
       - uses: actions/checkout@v4
