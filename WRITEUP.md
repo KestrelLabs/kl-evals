@@ -1,24 +1,24 @@
 # kestrel-evals — Deterministic LLM Gating (Initial Implementation)
 
 ## BLUF
-If an LLM feature depends on a structured output contract, you should be able to test that contract the same way you test normal software: with deterministic checks, repeatable suites, and CI failure when the output breaks.
+If an LLM feature depends on a structured output contract, you should be able to test that contract the same way you test ordinary software: with deterministic checks, repeatable suites, and CI failure when the output breaks.
 
 That is the value proposition of `kestrel-evals`.
 
-It gives you a compact way to:
+It provides a compact way to:
 - define LLM eval cases in YAML
 - enforce mechanical correctness (JSON validity, required keys, allowed values, formatting constraints)
 - generate machine-readable reports
 - fail CI on regressions
 
-The result is not a broad “AI quality platform.” It is something narrower and more operationally useful: a test harness for contract-bound LLM behaviors.
+This is not an attempt to be a general-purpose “AI quality platform.” It is something narrower and, in many workflows, more immediately useful: a test harness for contract-bound LLM behaviors.
 
 ---
 
 ## Abstract
-`kestrel-evals` is a small evaluation harness for LLM-powered systems where output correctness is partly or largely **mechanical**.
+`kestrel-evals` is a small evaluation harness for LLM-powered systems where correctness is partly or largely **mechanical**.
 
-Instead of starting with rubric scoring, model-vs-model judging, or broad subjective grading, this project starts with a narrower claim:
+Rather than beginning with rubric scoring, model-vs-model judging, or broad subjective grading, the project starts from a simpler premise:
 
 > if an LLM feature depends on a structured output contract, the first evaluation layer should be deterministic.
 
@@ -26,29 +26,29 @@ In practice, that means checking things like:
 - whether the output is valid JSON
 - whether required keys exist
 - whether values belong to a controlled vocabulary
-- whether certain formatting guarantees are preserved
+- whether formatting guarantees are preserved
 
 The harness takes YAML-defined suites, executes prompts against a provider, applies deterministic checks, emits a JSON report, and exits non-zero on failure so the result can gate CI.
 
-The current implementation is intentionally small. The point is not to be a universal benchmark platform. The point is to make one common class of LLM failure visible, repeatable, and actionable.
+The current implementation is intentionally small. It is not trying to be a universal benchmark platform. Its purpose is to make one common class of LLM failure visible, repeatable, and actionable.
 
 ---
 
 ## 1. Introduction
-The practical challenge with LLM systems is not always that they are “wrong” in a philosophical sense. More often, they are wrong in ways that break software.
+A large share of practical LLM failures are not philosophical or subtle. They are mechanical.
 
-A downstream system might expect:
+A downstream system may expect:
 - valid JSON
 - a fixed set of top-level keys
 - empty strings instead of `null`
-- a list field that uses only approved labels
-- no extra commentary, markdown fences, or prose wrappers
+- a list field using only approved labels
+- no prose wrappers, code fences, or extra commentary
 
-When those assumptions are violated, the system fails long before anyone gets to debate whether the model output was clever, elegant, or broadly helpful.
+When those assumptions are violated, the integration fails before anyone has a chance to debate whether the answer was clever, elegant, or broadly helpful.
 
-That is the gap `kestrel-evals` is designed to fill.
+That is the gap `kestrel-evals` is designed to address.
 
-The core idea is simple: if an LLM output is part of a production workflow, then the output contract should be testable. And if it is testable, it should be possible to run those tests locally, in CI, and in a way that fails fast when the contract breaks.
+The central idea is straightforward: if an LLM output is part of a production workflow, then the output contract should be testable. And if it is testable, it should be possible to run those tests locally, in CI, and in a way that fails fast when the contract breaks.
 
 ### Clear value proposition
 The value proposition is not “better AI vibes.”
@@ -59,51 +59,49 @@ The value proposition is:
 - CI-visible failures instead of downstream breakage
 - a lightweight path from “prompt experiment” to “testable subsystem”
 
-In short: `kestrel-evals` makes a common class of LLM integration risks behave more like ordinary software quality problems.
+Put differently: `kestrel-evals` makes a common class of LLM integration risks behave more like ordinary software quality problems.
 
 ---
 
 ## 2. Problem statement
-Many LLM evaluation discussions jump immediately to nuanced questions:
+Many discussions of LLM evaluation jump immediately to nuanced questions:
 - Is the answer helpful?
 - Is the reasoning strong?
-- Does the response feel better than another model’s response?
+- Is one model’s response better than another’s?
 - Would a judge model rate this highly?
 
-Those are legitimate questions, but they are not always the first ones that matter.
+Those are legitimate questions. They are simply not always the first ones that matter.
 
 For a large class of practical systems, the first failures are much simpler:
 - the model returned markdown-wrapped JSON when the system needed raw JSON
-- one required field is missing
+- a required field is missing
 - key names drifted
 - a classifier emitted a synonym instead of an allowed label
 - a field that should be an array became a string
 - a value that should be `""` came back as `null`
 
-These are not subtle quality issues. They are integration-breaking contract violations.
+These are not subtle quality issues. They are contract violations that can break parsing, routing, storage, or automation outright.
 
-If an LLM-powered feature sits inside a production workflow, those failures are often more important than broad subjective quality. A structurally invalid output can break downstream parsing, routing, or storage before anyone has a chance to debate whether the answer was “good.”
-
-This project exists to address that layer first.
+If an LLM-powered feature sits inside a production workflow, these failures are often more consequential than broad subjective quality. This project exists to handle that layer first.
 
 ---
 
 ## 3. Design goal
-The goal of `kestrel-evals` is straightforward:
+The goal of `kestrel-evals` is simple:
 
 > **Deterministic gating first.**
 
-That means:
+In practice, that means:
 - define suites in a small, reviewable format
 - run them locally and in CI
 - check output contracts with deterministic logic
 - fail quickly when those contracts are violated
 
-The goal of this initial implementation is deliberately limited. This project is not trying to solve all evaluation problems at once.
+The goal of this initial implementation is deliberately limited. The project is not trying to solve all evaluation problems at once.
 
-It is trying to solve a narrower and common one well:
+It is trying to solve a narrower, common, and useful one well:
 
-> Given a prompt-based feature with a known expected shape, can we catch regressions automatically and cheaply?
+> Given a prompt-based feature with a known expected shape, can regressions be caught automatically and cheaply?
 
 ---
 
@@ -118,21 +116,21 @@ It is trying to solve a narrower and common one well:
 - non-zero exit on failure
 
 ### Not in scope yet
-- full benchmarking platform behavior
-- dataset/version registry
+- a full benchmarking platform
+- dataset/version registry tooling
 - annotation UI
 - judge-model scoring as the primary decision mechanism
 - provider-independent parity claims
 - comprehensive JSON Schema support
 
-This limitation is deliberate. The project is small on purpose.
+These limits are intentional. The project is small on purpose.
 
 ---
 
-## 5. Why deterministic checks deserve to be first
+## 5. Why deterministic checks come first
 There are at least four reasons to start here.
 
-### 5.1 They map directly to production failure modes
+### 5.1 They map directly to real production failure modes
 If your downstream code expects:
 
 ```json
@@ -143,18 +141,18 @@ If your downstream code expects:
 }
 ```
 
-then these are real failures, not cosmetic differences:
+then the following are real failures, not cosmetic differences:
 - missing `lead_email`
 - `services` not being a list
 - `services` containing an unsupported label
-- the model returning prose before the JSON block
+- prose appearing before the JSON object
 
-These are precisely the kinds of errors deterministic checks catch well.
+These are precisely the kinds of issues deterministic checks catch well.
 
 ### 5.2 They are cheap to run and easy to explain
 A failed regex, missing key, or disallowed value is easy to understand.
 
-That matters for team adoption. Engineers and product owners are much more likely to trust an eval system when the failure explanation is concrete:
+That matters for adoption. Engineers and product owners are more likely to trust an evaluation system when the failure explanation is concrete:
 - `Missing keys: ['summary']`
 - `Expected list at 'services', got str`
 - `Disallowed values at 'services': ['SEO']`
@@ -167,10 +165,10 @@ That is exactly how `kestrel-evals` behaves today:
 - write report
 - exit with code `1` if any case fails
 
-This is simple enough to drop into a GitHub Actions workflow without inventing an entire orchestration layer.
+No orchestration layer is required for the basic loop to be useful.
 
-### 5.4 They create a clean foundation for later subjective evaluation
-Rubric scoring and LLM-as-judge can be valuable, but they are far more useful once the system is already meeting its hard constraints.
+### 5.4 They provide a clean foundation for later subjective evaluation
+Rubric scoring and LLM-as-judge can be valuable, but they are more useful once the system is already meeting its hard constraints.
 
 It is usually a mistake to ask “how good is this answer?” before confirming “did it even produce something structurally valid?”
 
@@ -235,11 +233,11 @@ Each case defines:
 - `prompt.user`
 - `checks`
 
-This keeps the specification close to the thing being evaluated. The suite file acts as both:
+That keeps the specification close to the thing being evaluated. The suite file functions as both:
 - the test definition
 - the documentation of the expected contract
 
-That is an important property. It means the test suite is not hidden in scattered Python assertions or provider-specific glue code.
+This is a useful property. The behavior under test is not hidden in scattered assertions or provider-specific glue code.
 
 ---
 
@@ -252,11 +250,11 @@ The provider abstraction is intentionally minimal.
 The current implementation is `OpenAIProvider` in:
 - `src/kestrel_evals/providers/openai_provider.py`
 
-This design does two useful things:
-1. keeps eval logic separated from vendor-specific API calls
-2. makes it straightforward to add providers later without rewriting the suite or runner logic
+This separation does two useful things:
+1. it keeps eval logic distinct from vendor-specific API code
+2. it makes it straightforward to add providers later without rewriting suite or runner logic
 
-The project is not yet provider-rich, but the architecture already assumes it should be.
+The project is not provider-rich yet, but the architecture is already shaped to support that direction.
 
 ---
 
@@ -264,14 +262,14 @@ The project is not yet provider-rich, but the architecture already assumes it sh
 The current harness supports a small check vocabulary. That is a strength, not a weakness, because it keeps the system auditable.
 
 ### 9.1 `json_schema`
-The current `json_schema` support is intentionally limited, but it covers a useful subset:
+The `json_schema` support is intentionally limited, but it covers a useful subset:
 - object type checking
 - required keys
 - primitive property type checks
 
 This is implemented in `check_json_schema()`.
 
-It is not meant to compete with the full `jsonschema` library. It is meant to be enough for common contract enforcement without increasing dependency surface too early.
+It is not meant to compete with the full `jsonschema` library. It is meant to be sufficient for common contract enforcement without increasing dependency surface too early.
 
 ### 9.2 `allowed_values`
 This check verifies that a path like `services` resolves to a list, and that every item in that list belongs to an allowed vocabulary.
@@ -285,7 +283,7 @@ This is especially useful for:
 ### 9.3 `regex`
 A regex check operates on raw output text.
 
-This is useful for lightweight assertions like:
+This is useful for lightweight assertions such as:
 - confirming an email-shaped string is present
 - confirming a sentinel or formatting pattern appears
 - validating a lightweight content constraint without writing another parser
@@ -309,10 +307,10 @@ The resulting report includes:
 - per-case outputs
 - per-check results
 
-This format is intentionally plain JSON so it is easy to:
+The format is intentionally plain JSON so it is easy to:
 - inspect manually
 - upload as a CI artifact
-- transform later into HTML/Markdown if desired
+- transform later into HTML or Markdown if desired
 
 ---
 
@@ -364,12 +362,12 @@ It models a common operational problem:
 
 > Extract a consistent structured payload from messy inbound lead emails.
 
-That use case is representative because it contains several typical LLM failure modes at once:
+That use case is representative because it contains several common LLM failure modes at once:
 - semi-structured inputs
 - incomplete data
 - synonyms and paraphrases
 - controlled vocabularies for services
-- need for strict JSON parsing downstream
+- the need for strict JSON parsing downstream
 
 ### Contract enforced by the suite
 The suite requires outputs to:
@@ -442,15 +440,15 @@ This baseline should be read narrowly: it is one successful reference run for on
 
 ---
 
-## 14. Lessons from building the example suite
+## 14. Lessons from the example suite
 One practical lesson from the structured extraction example is that even strong models need **clear contract reinforcement** when the output format is strict.
 
-In practice, the kinds of things that improved reliability were not exotic:
+The things that improved reliability were not exotic:
 - restating the exact JSON shape
 - insisting on no markdown / no code fences
 - enforcing top-level keys
 - clarifying that unknowns should be empty strings, not `null`
-- adding explicit mapping guidance for controlled vocabulary fields
+- adding explicit mapping guidance for controlled-vocabulary fields
 
 This is exactly why deterministic gating is useful.
 
@@ -486,7 +484,7 @@ This is not accidental harshness. It reflects a real production concern: if the 
 ### 15.3 Report format is functional, not polished
 The current report is JSON-first and artifact-friendly.
 
-That makes it practical, but not especially reader-friendly for non-technical audiences. Better human-readable reporting is a clear next step.
+That makes it practical, but not especially reader-friendly for non-technical audiences. Better human-readable reporting is an obvious next step.
 
 ---
 
@@ -507,6 +505,7 @@ The current repo most directly validates the structured extraction / controlled-
 - JSON response formatting for downstream automations
 
 The narrower and more contract-bound the output, the more credible this harness is today.
+
 ---
 
 ## 17. What it is not trying to solve yet
@@ -519,7 +518,7 @@ There are many worthwhile evaluation problems outside the current scope:
 
 Those may become relevant later, but they are not required for the project to provide immediate value.
 
-The current claim is narrower and more defensible:
+The current claim is deliberately narrower:
 
 > if your system needs outputs that obey strict mechanical constraints, this harness can test that today.
 
@@ -537,7 +536,7 @@ The provider abstraction is already in place. The most obvious next additions ar
 The point is not provider-count for its own sake, but being able to run the same suite against multiple backends without rewriting eval logic.
 
 ### 18.2 Better reporting
-The current JSON artifact is useful but sparse. The next reporting step should likely be:
+The current JSON artifact is useful but sparse. The next reporting step should likely include:
 - Markdown summaries for humans
 - HTML reports for easier review
 - pass/fail diffs against a checked-in baseline
@@ -562,7 +561,7 @@ That is the right order:
 ## 19. Conclusion
 `kestrel-evals` is a deliberately small tool solving a real problem: making a class of LLM regressions testable in the same operational style as conventional software tests.
 
-Its central argument is simple and practical:
+Its central argument is simple:
 - if an LLM feature depends on output structure,
 - deterministic validation should be the first evaluation layer,
 - and CI should be able to fail when that contract breaks.
@@ -572,9 +571,7 @@ That is the contribution of this initial implementation.
 It is not a grand unified evaluation platform. It is a compact, production-minded harness for one of the most common and immediately useful evaluation patterns: **deterministic gating of contract-bound LLM outputs**.
 
 ### So what?
-The practical implication is that teams do not have to choose between “prompt engineering in the dark” and “building a giant evaluation platform.”
-
-There is a useful middle ground.
+The practical implication is that teams do not have to choose between “prompt engineering in the dark” and “building a giant evaluation platform.” There is a useful middle ground.
 
 `kestrel-evals` shows that for contract-bound LLM features, a small amount of structure goes a long way:
 - define the contract
@@ -582,4 +579,4 @@ There is a useful middle ground.
 - run them locally
 - gate CI on regressions
 
-That turns a fragile prompt-dependent behavior into something closer to an ordinary software component: observable, testable, and much easier to trust.
+That does not make LLM behavior magically stable or universally reliable. What it does do is move one important class of prompt-dependent behavior closer to an ordinary software component: observable, testable, and easier to trust in production workflows.
