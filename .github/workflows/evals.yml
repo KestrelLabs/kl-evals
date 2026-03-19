@@ -54,15 +54,20 @@ jobs:
           path: reports/report.json
 
       - name: Generate badge endpoint JSON
+        env:
+          MODEL: ${{ inputs.model }}
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           report = json.loads(Path('reports/report.json').read_text(encoding='utf-8'))
           total = int(report['summary']['total'])
           failed = int(report['summary']['failed'])
           passed = total - failed
+
+          model = (os.getenv('MODEL') or '').strip() or 'model?'
 
           if failed == 0:
             color = 'brightgreen'
@@ -74,7 +79,7 @@ jobs:
           badge = {
             'schemaVersion': 1,
             'label': 'evals',
-            'message': f'{passed}/{total} pass',
+            'message': f'{model} · {passed}/{total} pass',
             'color': color,
           }
 
